@@ -38,11 +38,11 @@ export async function listTranslations(name, args) {
   const doc = await parseXlf(filePath);
   const units = Array.from(doc.getElementsByTagName("unit"));
 
-  const filteredUnits = name === "list_new_translations" 
+  const filteredUnits = name === "list_new_translations"
     ? units.filter(unit => {
-        const target = unit.getElementsByTagName("target")[0];
-        return target && target.getAttribute("state") === "initial";
-      })
+      const target = unit.getElementsByTagName("target")[0];
+      return target && target.getAttribute("state") === "initial";
+    })
     : units;
 
   const totalCount = filteredUnits.length;
@@ -72,7 +72,7 @@ export async function updateTranslation(args) {
 
   let segment = unit.getElementsByTagName("segment")[0];
   if (!segment) {
-      segment = unit; 
+    segment = unit;
   }
 
   let target = segment.getElementsByTagName("target")[0];
@@ -161,7 +161,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     switch (name) {
       case "extract_i18n": {
         execSync("npx ng extract-i18n --output-path src/locale --format=xlf2", {
-          stdio: "inherit",
+          stdio: "pipe",
         });
         return { content: [{ type: "text", text: "Extraction and merge completed successfully." }] };
       }
@@ -193,7 +193,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-if (process.argv[1] === import.meta.filename || process.argv[1].endsWith('index.mjs')) {
+function isMain() {
+  const argv1 = process.argv[1];
+  if (!argv1) return false;
+
+  const normalizedArgv1 = argv1.replace(/\\/g, '/');
+  const normalizedFilename = import.meta.filename.replace(/\\/g, '/');
+
+  return normalizedArgv1 === normalizedFilename ||
+    normalizedArgv1.endsWith('index.mjs') ||
+    normalizedArgv1.endsWith('angular-i18n-mcp');
+}
+
+if (isMain()) {
   async function main() {
     const transport = new StdioServerTransport();
     await server.connect(transport);

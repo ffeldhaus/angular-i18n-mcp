@@ -18,23 +18,13 @@ This MCP server provides tools to manage Angular internationalization (i18n) usi
   ```
 - Angular configuration (`angular.json`) should define the target locales and use the `xlf2` format.
 
-## Installation
+## Configuration
 
-You can install the package globally via npm:
+This MCP server requires configuration in `.gemini/settings.json`. You can place this file in either:
+- Your user home directory: `~/.gemini/settings.json`
+- The project root directory: `./.gemini/settings.json`
 
-```bash
-npm install -g angular-i18n-mcp
-```
-
-Or run it directly using `npx`:
-
-```bash
-npx angular-i18n-mcp
-```
-
-## Usage with Gemini-CLI
-
-The easiest way to use this server is via `npx`. Add the following to your configuration:
+Add the following to your configuration:
 
 ```json
 {
@@ -48,38 +38,27 @@ The easiest way to use this server is via `npx`. Add the following to your confi
 }
 ```
 
-Or, if you have it installed globally:
-
-```json
-{
-  "mcpServers": {
-    "angular-i18n": {
-      "command": "angular-i18n-mcp",
-      "args": [],
-      "env": {}
-    }
-  }
-}
-```
-
 ## Tools
 
 ### `extract_i18n`
-Extracts strings from the source code and merges them into the `.xlf` files in `src/locale`.
+- Extracts strings from the source code and merges them into the `.xlf` files in `src/locale`.
 
 ### `list_new_translations`
+- Lists newly added translation units that haven't been translated yet (marked with `state="initial"`).
 - **Arguments**:
   - `locale`: The target language code (e.g., `de`).
   - `page` (optional): Page number for pagination.
   - `pageSize` (optional): Number of units per page.
 
 ### `list_all_translations`
+- Lists all translation units in a locale file.
 - **Arguments**:
   - `locale`: The target language code.
   - `page` (optional): Page number.
   - `pageSize` (optional): Number of units per page.
 
 ### `update_translation`
+- Updates the translation text for a specific unit and sets its state to `translated`.
 - **Arguments**:
   - `id`: The unique ID of the translation unit.
   - `locale`: The target language code.
