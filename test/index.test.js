@@ -5,7 +5,7 @@ import path from 'node:path';
 // Set LOCALE_DIR relative to project root
 process.env.LOCALE_DIR = 'test/locale';
 
-const { listTranslations, updateTranslation, extractI18n } = await import('../index.mjs');
+const { listTranslations, updateTranslation, extractI18n, getI18nSettings } = await import('../index.mjs');
 
 describe('Angular i18n MCP Server - Integration Tests', () => {
   const TEST_LOCALE_DIR = 'test/locale';
@@ -25,9 +25,9 @@ describe('Angular i18n MCP Server - Integration Tests', () => {
     let units = "";
     for (let i = 1; i <= 15; i++) {
       units += `    <unit id="unit-${i}">
-      <segment>
+      <segment state="initial">
         <source>Source ${i}</source>
-        <target state="initial">Target ${i}</target>
+        <target>Target ${i}</target>
       </segment>
     </unit>\n`;
     }
@@ -39,6 +39,26 @@ ${units}  </file>
 
     await fs.writeFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), generateXlf('en'));
     await fs.writeFile(path.join(TEST_LOCALE_DIR, 'messages.fr.xlf'), generateXlf('fr'));
+  }
+
+  async function seedTestDataV12() {
+    await fs.mkdir(TEST_LOCALE_DIR, { recursive: true });
+    let units = "";
+    for (let i = 1; i <= 5; i++) {
+      units += `      <trans-unit id="unit-${i}" datatype="html">
+        <source>Source ${i}</source>
+        <target state="initial">Target ${i}</target>
+      </trans-unit>\n`;
+    }
+    const generateXlf = (targetLang) => `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="1.2" xmlns="urn:oasis:names:tc:xliff:document:1.2">
+  <file source-language="de" target-language="${targetLang}" datatype="plaintext" original="ng.template">
+    <body>
+${units}    </body>
+  </file>
+</xliff>`;
+
+    await fs.writeFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), generateXlf('en'));
   }
 
   describe('extract_i18n', () => {
@@ -91,6 +111,47 @@ ${units}  </file>
     it('should list new translations (state="initial")', async () => {
       const result = await listTranslations('list_new_translations', { locale: 'en' });
       expect(result.totalCount).toBe(15);
+      expect(result.units[0]).toContain('<segment state="initial">');
+
+      // Update one unit to be translated
+      await updateTranslation({ id: 'unit-1', locale: 'en', translation: 'New' });
+      const resultAfter = await listTranslations('list_new_translations', { locale: 'en' });
+      expect(resultAfter.totalCount).toBe(14);
+    });
+  });
+
+  describe('XLIFF 1.2 Support', () => {
+    beforeEach(async () => {
+      await seedTestDataV12();
+    });
+
+    it('should list all units for XLIFF 1.2', async () => {
+      const result = await listTranslations('list_all_translations', { locale: 'en' });
+      expect(result.totalCount).toBe(5);
+    });
+
+    it('should list new translations for XLIFF 1.2', async () => {
+      const result = await listTranslations('list_new_translations', { locale: 'en' });
+      expect(result.totalCount).toBe(5);
+      expect(result.units[0]).toContain('<target state="initial">');
+    });
+
+    it('should update translation for XLIFF 1.2', async () => {
+      const unitId = 'unit-1';
+      const newTranslation = 'Translated V1.2';
+
+      await updateTranslation({ id: unitId, locale: 'en', translation: newTranslation });
+
+      const updatedContent = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
+      expect(updatedContent).toContain(`<target state="translated">${newTranslation}</target>`);
+    });
+  });
+
+  describe('getI18nSettings', () => {
+    it('should return i18n settings from angular.json', async () => {
+      const result = await getI18nSettings();
+      expect(result.sourceLocale).toBe('de');
+      expect(result.locales.en).toBeDefined();
     });
   });
 
@@ -108,7 +169,8 @@ ${units}  </file>
       expect(result).toBe(`Updated translation for unit ${unitId}`);
 
       const updatedContent = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
-      expect(updatedContent).toContain(`<target state="translated">${newTranslation}</target>`);
+      expect(updatedContent).toContain(`<segment state="translated">`);
+      expect(updatedContent).toContain(`<target>${newTranslation}</target>`);
     });
   });
 });

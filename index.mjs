@@ -36,12 +36,22 @@ export async function listTranslations(name, args) {
   const pageSize = args.pageSize || 10;
   const filePath = await getXlfPath(locale);
   const doc = await parseXlf(filePath);
-  const units = Array.from(doc.getElementsByTagName("unit"));
+  const units = [
+    ...Array.from(doc.getElementsByTagName("unit")),
+    ...Array.from(doc.getElementsByTagName("trans-unit"))
+  ];
 
   const filteredUnits = name === "list_new_translations"
     ? units.filter(unit => {
+      const segment = unit.getElementsByTagName("segment")[0];
       const target = unit.getElementsByTagName("target")[0];
-      return target && target.getAttribute("state") === "initial";
+
+      // XLIFF 2.0: state is usually on segment
+      if (segment && segment.getAttribute("state") === "initial") return true;
+      // XLIFF 1.2: state is usually on target
+      if (target && target.getAttribute("state") === "initial") return true;
+
+      return false;
     })
     : units;
 
@@ -63,7 +73,10 @@ export async function updateTranslation(args) {
   const { id, locale, translation } = args;
   const filePath = await getXlfPath(locale);
   const doc = await parseXlf(filePath);
-  const units = Array.from(doc.getElementsByTagName("unit"));
+  const units = [
+    ...Array.from(doc.getElementsByTagName("unit")),
+    ...Array.from(doc.getElementsByTagName("trans-unit"))
+  ];
   const unit = units.find(u => u.getAttribute("id") === id);
 
   if (!unit) {
@@ -82,10 +95,26 @@ export async function updateTranslation(args) {
   }
 
   target.textContent = translation;
-  target.setAttribute("state", "translated");
+  if (segment && segment.tagName === "segment") {
+    segment.setAttribute("state", "translated");
+  } else {
+    target.setAttribute("state", "translated");
+  }
 
   await saveXlf(filePath, doc);
   return `Updated translation for unit ${id}`;
+}
+
+export async function getI18nSettings() {
+  const angularJsonPath = path.join(process.cwd(), "angular.json");
+  const content = await fs.readFile(angularJsonPath, "utf-8");
+  const angularJson = JSON.parse(content);
+  const projectNames = Object.keys(angularJson.projects);
+  const projectName = projectNames[0]; // Default to first project
+  if (!projectName) {
+    throw new Error("No projects found in angular.json");
+  }
+  return angularJson.projects[projectName].i18n || {};
 }
 
 const server = new Server(
@@ -150,6 +179,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["id", "locale", "translation"],
         },
       },
+      {
+        name: "get_i18n_settings",
+        description: "Get i18n settings from angular.json",
+        inputSchema: {
+          type: "object",
+          properties: {},
+        },
+      },
     ],
   };
 });
@@ -159,7 +196,23 @@ export async function extractI18n() {
   const isNgInCwd = await fs.stat(ngPath).then(() => true).catch(() => false);
   const command = isNgInCwd ? `node ${ngPath}` : "npx ng";
 
-  execSync(`${command} extract-i18n --output-path ${LOCALE_DIR} --format=xlf2`, {
+  let format = "xlf2";
+  try {
+    const angularJsonPath = path.join(process.cwd(), "angular.json");
+    const content = await fs.readFile(angularJsonPath, "utf-8");
+    const angularJson = JSON.parse(content);
+    const projectName = Object.keys(angularJson.projects)[0];
+    if (projectName) {
+      const options = angularJson.projects[projectName]?.architect?.["extract-i18n"]?.options;
+      if (options?.format) {
+        format = options.format;
+      }
+    }
+  } catch (error) {
+    // Fallback to xlf2
+  }
+
+  execSync(`${command} extract-i18n --output-path ${LOCALE_DIR} --format=${format}`, {
     stdio: "pipe",
     env: { ...process.env, NODE_PATH: path.join(process.cwd(), "node_modules") }
   });
@@ -176,13 +229,23 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return { content: [{ type: "text", text }] };
       }
 
-      case "list_new_translations":
-      case "list_all_translations": {
+      case "list_all_translations":
+      case "list_new_translations": {
         const result = await listTranslations(name, args);
         return {
           content: [{
             type: "text",
             text: JSON.stringify(result, null, 2)
+          }]
+        };
+      }
+
+      case "get_i18n_settings": {
+        const settings = await getI18nSettings();
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(settings, null, 2)
           }]
         };
       }
