@@ -20,11 +20,17 @@ This MCP server provides tools to manage Angular internationalization (i18n) usi
 
 ## Installation
 
-1. Clone or copy this server into your project or a dedicated directory.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+You can install the package globally via npm:
+
+```bash
+npm install -g angular-i18n-mcp
+```
+
+Or run it directly using `npx`:
+
+```bash
+npx angular-i18n-mcp
+```
 
 ## Usage with Gemini-CLI
 
@@ -42,7 +48,7 @@ The easiest way to use this server is via `npx`. Add the following to your confi
 }
 ```
 
-Or, if you have it installed locally/globally:
+Or, if you have it installed globally:
 
 ```json
 {
@@ -73,16 +79,8 @@ Extracts strings from the source code and merges them into the `.xlf` files in `
   - `page` (optional): Page number.
   - `pageSize` (optional): Number of units per page.
 
-### Publishing to npm
-
-This project includes a GitHub Action to automatically publish the package when a new release is created.
-
-1.  **Generate an npm Token**: Create a "Classic" or "Granular" access token on [npmjs.com](https://www.npmjs.com/) with automation permissions.
-2.  **Add GitHub Secret**: In your GitHub repository, go to `Settings > Secrets and variables > Actions` and add a new repository secret named `NPM_TOKEN`.
-3.  **Trigger Publish**: To publish, create a new Release on GitHub. The workflow will run tests and then execute `npm publish`.
-
-#### Initial Publish
-For the very first publish, it is recommended to run it once manually from your local machine to ensure the package name is claimed and the access is public:
-```bash
-npm publish --access public
-```
+### `update_translation`
+- **Arguments**:
+  - `id`: The unique ID of the translation unit.
+  - `locale`: The target language code.
+  - `translation`: The new translated text.
