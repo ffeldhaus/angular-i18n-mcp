@@ -10,7 +10,7 @@ import fs from "fs/promises";
 import path from "path";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 
-const LOCALE_DIR = "src/locale";
+const LOCALE_DIR = process.env.LOCALE_DIR || "src/locale";
 
 export async function getXlfPath(locale) {
   if (!locale) {
@@ -154,16 +154,26 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
+export async function extractI18n() {
+  const ngPath = path.join(process.cwd(), "node_modules", "@angular", "cli", "bin", "ng.js");
+  const isNgInCwd = await fs.stat(ngPath).then(() => true).catch(() => false);
+  const command = isNgInCwd ? `node ${ngPath}` : "npx ng";
+
+  execSync(`${command} extract-i18n --output-path ${LOCALE_DIR} --format=xlf2`, {
+    stdio: "pipe",
+    env: { ...process.env, NODE_PATH: path.join(process.cwd(), "node_modules") }
+  });
+  return "Extraction and merge completed successfully.";
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
     switch (name) {
       case "extract_i18n": {
-        execSync("npx ng extract-i18n --output-path src/locale --format=xlf2", {
-          stdio: "pipe",
-        });
-        return { content: [{ type: "text", text: "Extraction and merge completed successfully." }] };
+        const text = await extractI18n();
+        return { content: [{ type: "text", text }] };
       }
 
       case "list_new_translations":

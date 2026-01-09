@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "moduleResolution": "bundler",
+        "outDir": "./dist/out-tsc",
+        "types": [
+            "@angular/localize"
+        ],
+        "experimentalDecorators": true,
+        "useDefineForClassFields": false,
+        "lib": [
+            "ESNext",
+            "dom"
+        ],
+        "esModuleInterop": true
+    },
+    "files": [
+        "src/main.ts"
+    ],
+    "include": [
+        "src/**/*.ts",
+        "src/**/*.d.ts"
+    ]
+}

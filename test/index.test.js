@@ -1,0 +1,114 @@
+import { jest } from '@jest/globals';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+// Set LOCALE_DIR relative to project root
+process.env.LOCALE_DIR = 'test/locale';
+
+const { listTranslations, updateTranslation, extractI18n } = await import('../index.mjs');
+
+describe('Angular i18n MCP Server - Integration Tests', () => {
+  const TEST_LOCALE_DIR = 'test/locale';
+
+  beforeEach(async () => {
+    // Ensure test locale dir exists
+    await fs.mkdir(TEST_LOCALE_DIR, { recursive: true });
+  });
+
+  afterEach(async () => {
+    // Cleanup generated files
+    await fs.rm(TEST_LOCALE_DIR, { recursive: true, force: true });
+  });
+
+  async function seedTestData() {
+    await fs.mkdir(TEST_LOCALE_DIR, { recursive: true });
+    let units = "";
+    for (let i = 1; i <= 15; i++) {
+      units += `    <unit id="unit-${i}">
+      <segment>
+        <source>Source ${i}</source>
+        <target state="initial">Target ${i}</target>
+      </segment>
+    </unit>\n`;
+    }
+    const generateXlf = (targetLang) => `<?xml version="1.0" encoding="UTF-8" ?>
+<xliff version="2.0" xmlns="urn:oasis:names:tc:xliff:document:2.0" srcLang="de" trgLang="${targetLang}">
+  <file id="ngi18n" original="ng.template">
+${units}  </file>
+</xliff>`;
+
+    await fs.writeFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), generateXlf('en'));
+    await fs.writeFile(path.join(TEST_LOCALE_DIR, 'messages.fr.xlf'), generateXlf('fr'));
+  }
+
+  describe('extract_i18n', () => {
+    it('should successfully extract i18n units from HTML for all configured target languages', async () => {
+      // Seed initial target files to verify merge
+      await seedTestData();
+
+      const result = await extractI18n();
+      expect(result).toBe("Extraction and merge completed successfully.");
+
+      // Verify messages.xlf exists (base file)
+      const extractedXlf = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.xlf'), 'utf-8');
+      expect(extractedXlf).toContain('Title');
+      expect(extractedXlf).toContain('Unit 15');
+
+      // Verify messages.en.xlf merged the new "Title" unit
+      const enXlf = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
+      expect(enXlf).toContain('Title');
+
+      // Verify messages.fr.xlf merged the new "Title" unit
+      const frXlf = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.fr.xlf'), 'utf-8');
+      expect(frXlf).toContain('Title');
+    }, 60000); // 60s timeout
+  });
+
+  describe('listTranslations with Pagination', () => {
+    beforeEach(async () => {
+      await seedTestData();
+    });
+
+    it('should list units with default pagination (pageSize=10)', async () => {
+      const result = await listTranslations('list_all_translations', { locale: 'en' });
+
+      expect(result.totalCount).toBe(15);
+      expect(result.units.length).toBe(10);
+      expect(result.page).toBe(0);
+      expect(result.nextPage).toBe(1);
+    });
+
+    it('should handle custom pageSize and page', async () => {
+      const result = await listTranslations('list_all_translations', { locale: 'en', page: 1, pageSize: 5 });
+
+      expect(result.totalCount).toBe(15);
+      expect(result.units.length).toBe(5);
+      expect(result.page).toBe(1);
+      expect(result.nextPage).toBe(2);
+      expect(result.units[0]).toContain('id="unit-6"');
+    });
+
+    it('should list new translations (state="initial")', async () => {
+      const result = await listTranslations('list_new_translations', { locale: 'en' });
+      expect(result.totalCount).toBe(15);
+    });
+  });
+
+  describe('updateTranslation', () => {
+    beforeEach(async () => {
+      await seedTestData();
+    });
+
+    it('should update a unit and persist to file system', async () => {
+      const unitId = 'unit-1';
+      const newTranslation = 'Translated Hello';
+
+      const result = await updateTranslation({ id: unitId, locale: 'en', translation: newTranslation });
+
+      expect(result).toBe(`Updated translation for unit ${unitId}`);
+
+      const updatedContent = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
+      expect(updatedContent).toContain(`<target state="translated">${newTranslation}</target>`);
+    });
+  });
+});
