@@ -5,7 +5,7 @@
   "main": "index.mjs",
   "type": "module",
   "bin": {
-    "angular-i18n-mcp": "./index.mjs"
+    "angular-i18n-mcp": "index.mjs"
   },
   "files": [
     "index.mjs",
