@@ -5,7 +5,7 @@ import path from 'node:path';
 // Set LOCALE_DIR relative to project root
 process.env.LOCALE_DIR = 'test/locale';
 
-const { listTranslations, updateTranslation, extractI18n, getI18nSettings } = await import('../index.mjs');
+const { listTranslations, updateTranslation, extractI18n, getI18nSettings, bulkUpdateTranslations } = await import('../index.mjs');
 
 describe('Angular i18n MCP Server - Integration Tests', () => {
   const TEST_LOCALE_DIR = 'test/locale';
@@ -89,13 +89,13 @@ ${units}    </body>
       await seedTestData();
     });
 
-    it('should list units with default pagination (pageSize=10)', async () => {
+    it('should list units with default pagination (pageSize=50)', async () => {
       const result = await listTranslations('list_all_translations', { locale: 'en' });
 
       expect(result.totalCount).toBe(15);
-      expect(result.units.length).toBe(10);
+      expect(result.units.length).toBe(15);
       expect(result.page).toBe(0);
-      expect(result.nextPage).toBe(1);
+      expect(result.nextPage).toBe(null);
     });
 
     it('should handle custom pageSize and page', async () => {
@@ -171,6 +171,44 @@ ${units}    </body>
       const updatedContent = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
       expect(updatedContent).toContain(`<segment state="translated">`);
       expect(updatedContent).toContain(`<target>${newTranslation}</target>`);
+    });
+  });
+
+  describe('bulkUpdateTranslations', () => {
+    beforeEach(async () => {
+      await seedTestData();
+    });
+
+    it('should update multiple units in a single call', async () => {
+      const updates = [
+        { id: 'unit-1', translation: 'Bulk 1' },
+        { id: 'unit-2', translation: 'Bulk 2' }
+      ];
+      const result = await bulkUpdateTranslations({ locale: 'en', updates });
+
+      expect(result.updated).toContain('unit-1');
+      expect(result.updated).toContain('unit-2');
+      expect(result.notFound.length).toBe(0);
+
+      const updatedContent = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
+      expect(updatedContent).toContain('Bulk 1');
+      expect(updatedContent).toContain('Bulk 2');
+    });
+
+    it('should report units that were not found', async () => {
+      const updates = [
+        { id: 'unit-1', translation: 'Bulk 1' },
+        { id: 'non-existent', translation: 'No' }
+      ];
+      const result = await bulkUpdateTranslations({ locale: 'en', updates });
+
+      expect(result.updated).toContain('unit-1');
+      expect(result.notFound).toContain('non-existent');
+    });
+
+    it('should throw error if more than 50 updates are provided', async () => {
+      const updates = Array.from({ length: 51 }, (_, i) => ({ id: `unit-${i}`, translation: `Trans ${i}` }));
+      await expect(bulkUpdateTranslations({ locale: 'en', updates })).rejects.toThrow("Maximum 50 updates allowed per tool call.");
     });
   });
 });

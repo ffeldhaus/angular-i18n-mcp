@@ -63,3 +63,26 @@ Add the following to your configuration:
   - `id`: The unique ID of the translation unit.
   - `locale`: The target language code.
   - `translation`: The new translated text.
+
+## TODO
+
+- default page size to 50
+- bulk update translations with max 50
+- unit listing should not be a table but compact format maybe YAML or XML
+- document best practices adding src/locale to gitignore and using description in i18n tags
+- xml issue
+The issue was that XML tags were incorrectly escaped inside the translation file (src/locale/messages.en.xlf).
+
+  In Angular's XLIFF format, placeholders (like {{ year }}) and HTML wrappers (like <strong>) are represented by special tags:
+   - <ph> (placeholder)
+   - <pc> (placeholder container)
+
+  When I updated the translations, these tags were written as escaped text (e.g., &lt;ph ... /&gt;) instead of actual XML tags. When you ran the build, the
+  Angular compiler couldn't parse these as valid placeholders, leading to the error:
+  ERROR Error: Unable to parse ICU expression...
+
+  I fixed this by running a script to "unescape" those specific tags within the <target> elements, restoring them to valid XML so the compiler could recognize
+  them correctly.
+✦ The build was successful, confirming that the XML issues are resolved. I'll now commit the fixes to the translation file.
+
+- add biome

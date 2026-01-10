@@ -33,7 +33,7 @@ export async function saveXlf(filePath, doc) {
 export async function listTranslations(name, args) {
   const locale = args.locale;
   const page = args.page || 0;
-  const pageSize = args.pageSize || 10;
+  const pageSize = args.pageSize || 50;
   const filePath = await getXlfPath(locale);
   const doc = await parseXlf(filePath);
   const units = [
@@ -69,18 +69,10 @@ export async function listTranslations(name, args) {
   };
 }
 
-export async function updateTranslation(args) {
-  const { id, locale, translation } = args;
-  const filePath = await getXlfPath(locale);
-  const doc = await parseXlf(filePath);
-  const units = [
-    ...Array.from(doc.getElementsByTagName("unit")),
-    ...Array.from(doc.getElementsByTagName("trans-unit"))
-  ];
+function applyTranslationUpdate(doc, units, id, translation) {
   const unit = units.find(u => u.getAttribute("id") === id);
-
   if (!unit) {
-    throw new Error(`Unit with id "${id}" not found.`);
+    return false;
   }
 
   let segment = unit.getElementsByTagName("segment")[0];
@@ -100,9 +92,56 @@ export async function updateTranslation(args) {
   } else {
     target.setAttribute("state", "translated");
   }
+  return true;
+}
+
+export async function updateTranslation(args) {
+  const { id, locale, translation } = args;
+  const filePath = await getXlfPath(locale);
+  const doc = await parseXlf(filePath);
+  const units = [
+    ...Array.from(doc.getElementsByTagName("unit")),
+    ...Array.from(doc.getElementsByTagName("trans-unit"))
+  ];
+
+  if (applyTranslationUpdate(doc, units, id, translation)) {
+    await saveXlf(filePath, doc);
+    return `Updated translation for unit ${id}`;
+  } else {
+    throw new Error(`Unit with id "${id}" not found.`);
+  }
+}
+
+export async function bulkUpdateTranslations(args) {
+  const { locale, updates } = args;
+  if (!Array.isArray(updates)) {
+    throw new Error("Updates must be an array.");
+  }
+  if (updates.length > 50) {
+    throw new Error("Maximum 50 updates allowed per tool call.");
+  }
+  const filePath = await getXlfPath(locale);
+  const doc = await parseXlf(filePath);
+  const units = [
+    ...Array.from(doc.getElementsByTagName("unit")),
+    ...Array.from(doc.getElementsByTagName("trans-unit"))
+  ];
+
+  const results = {
+    updated: [],
+    notFound: []
+  };
+
+  for (const update of updates) {
+    if (applyTranslationUpdate(doc, units, update.id, update.translation)) {
+      results.updated.push(update.id);
+    } else {
+      results.notFound.push(update.id);
+    }
+  }
 
   await saveXlf(filePath, doc);
-  return `Updated translation for unit ${id}`;
+  return results;
 }
 
 export async function getI18nSettings() {
@@ -148,7 +187,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             locale: { type: "string", description: "Target locale (e.g., 'de')" },
             page: { type: "number", default: 0 },
-            pageSize: { type: "number", default: 10 },
+            pageSize: { type: "number", default: 50 },
           },
           required: ["locale"],
         },
@@ -161,7 +200,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             locale: { type: "string", description: "Target locale (e.g., 'de')" },
             page: { type: "number", default: 0 },
-            pageSize: { type: "number", default: 10 },
+            pageSize: { type: "number", default: 50 },
           },
           required: ["locale"],
         },
@@ -178,6 +217,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["id", "locale", "translation"],
         },
+      },
+      {
+        name: "bulk_update_translations",
+        description: "Update multiple translations in a single file (max 50)",
+        inputSchema: {
+          type: "object",
+          properties: {
+            locale: { type: "string", description: "Target locale" },
+            updates: {
+              type: "array",
+              description: "Array of translation updates",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string", description: "The unit ID" },
+                  translation: { type: "string", description: "The translated text" }
+                },
+                required: ["id", "translation"]
+              }
+            }
+          },
+          required: ["locale", "updates"]
+        }
       },
       {
         name: "get_i18n_settings",
@@ -253,6 +315,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "update_translation": {
         const text = await updateTranslation(args);
         return { content: [{ type: "text", text }] };
+      }
+
+      case "bulk_update_translations": {
+        const result = await bulkUpdateTranslations(args);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(result, null, 2)
+          }]
+        };
       }
 
       default:
