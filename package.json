@@ -1,6 +1,6 @@
 {
   "name": "angular-i18n-mcp",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "MCP server for managing Angular i18n XLIFF 2.0 files",
   "license": "Apache-2.0",
   "main": "index.mjs",
