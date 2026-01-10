@@ -1,13 +1,10 @@
 #!/usr/bin/env node
+import { execSync } from "node:child_process";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from "@modelcontextprotocol/sdk/types.js";
-import { execSync } from "child_process";
-import fs from "fs/promises";
-import path from "path";
+import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 
 const LOCALE_DIR = process.env.LOCALE_DIR || "src/locale";
@@ -38,22 +35,23 @@ export async function listTranslations(name, args) {
   const doc = await parseXlf(filePath);
   const units = [
     ...Array.from(doc.getElementsByTagName("unit")),
-    ...Array.from(doc.getElementsByTagName("trans-unit"))
+    ...Array.from(doc.getElementsByTagName("trans-unit")),
   ];
 
-  const filteredUnits = name === "list_new_translations"
-    ? units.filter(unit => {
-      const segment = unit.getElementsByTagName("segment")[0];
-      const target = unit.getElementsByTagName("target")[0];
+  const filteredUnits =
+    name === "list_new_translations"
+      ? units.filter((unit) => {
+          const segment = unit.getElementsByTagName("segment")[0];
+          const target = unit.getElementsByTagName("target")[0];
 
-      // XLIFF 2.0: state is usually on segment
-      if (segment && segment.getAttribute("state") === "initial") return true;
-      // XLIFF 1.2: state is usually on target
-      if (target && target.getAttribute("state") === "initial") return true;
+          // XLIFF 2.0: state is usually on segment
+          if (segment && segment.getAttribute("state") === "initial") return true;
+          // XLIFF 1.2: state is usually on target
+          if (target && target.getAttribute("state") === "initial") return true;
 
-      return false;
-    })
-    : units;
+          return false;
+        })
+      : units;
 
   const totalCount = filteredUnits.length;
   const start = page * pageSize;
@@ -65,12 +63,12 @@ export async function listTranslations(name, args) {
     page,
     pageSize,
     nextPage: start + pageSize < totalCount ? page + 1 : null,
-    units: pagedUnits.map(u => serializer.serializeToString(u)),
+    units: pagedUnits.map((u) => serializer.serializeToString(u)),
   };
 }
 
 function applyTranslationUpdate(doc, units, id, translation) {
-  const unit = units.find(u => u.getAttribute("id") === id);
+  const unit = units.find((u) => u.getAttribute("id") === id);
   if (!unit) {
     return false;
   }
@@ -111,7 +109,7 @@ export async function updateTranslation(args) {
   const doc = await parseXlf(filePath);
   const units = [
     ...Array.from(doc.getElementsByTagName("unit")),
-    ...Array.from(doc.getElementsByTagName("trans-unit"))
+    ...Array.from(doc.getElementsByTagName("trans-unit")),
   ];
 
   if (applyTranslationUpdate(doc, units, id, translation)) {
@@ -134,12 +132,12 @@ export async function bulkUpdateTranslations(args) {
   const doc = await parseXlf(filePath);
   const units = [
     ...Array.from(doc.getElementsByTagName("unit")),
-    ...Array.from(doc.getElementsByTagName("trans-unit"))
+    ...Array.from(doc.getElementsByTagName("trans-unit")),
   ];
 
   const results = {
     updated: [],
-    notFound: []
+    notFound: [],
   };
 
   for (const update of updates) {
@@ -242,14 +240,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: "object",
                 properties: {
                   id: { type: "string", description: "The unit ID" },
-                  translation: { type: "string", description: "The translated text" }
+                  translation: { type: "string", description: "The translated text" },
                 },
-                required: ["id", "translation"]
-              }
-            }
+                required: ["id", "translation"],
+              },
+            },
           },
-          required: ["locale", "updates"]
-        }
+          required: ["locale", "updates"],
+        },
       },
       {
         name: "get_i18n_settings",
@@ -265,7 +263,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 export async function extractI18n() {
   const ngPath = path.join(process.cwd(), "node_modules", "@angular", "cli", "bin", "ng.js");
-  const isNgInCwd = await fs.stat(ngPath).then(() => true).catch(() => false);
+  const isNgInCwd = await fs
+    .stat(ngPath)
+    .then(() => true)
+    .catch(() => false);
   const command = isNgInCwd ? `node ${ngPath}` : "npx ng";
 
   let format = "xlf2";
@@ -280,13 +281,13 @@ export async function extractI18n() {
         format = options.format;
       }
     }
-  } catch (error) {
+  } catch (_error) {
     // Fallback to xlf2
   }
 
   execSync(`${command} extract-i18n --output-path ${LOCALE_DIR} --format=${format}`, {
     stdio: "pipe",
-    env: { ...process.env, NODE_PATH: path.join(process.cwd(), "node_modules") }
+    env: { ...process.env, NODE_PATH: path.join(process.cwd(), "node_modules") },
   });
   return "Extraction and merge completed successfully.";
 }
@@ -305,20 +306,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "list_new_translations": {
         const result = await listTranslations(name, args);
         return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(result, null, 2)
-          }]
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
         };
       }
 
       case "get_i18n_settings": {
         const settings = await getI18nSettings();
         return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(settings, null, 2)
-          }]
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(settings, null, 2),
+            },
+          ],
         };
       }
 
@@ -330,10 +335,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "bulk_update_translations": {
         const result = await bulkUpdateTranslations(args);
         return {
-          content: [{
-            type: "text",
-            text: JSON.stringify(result, null, 2)
-          }]
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
         };
       }
 
@@ -352,12 +359,14 @@ function isMain() {
   const argv1 = process.argv[1];
   if (!argv1) return false;
 
-  const normalizedArgv1 = argv1.replace(/\\/g, '/');
-  const normalizedFilename = import.meta.filename.replace(/\\/g, '/');
+  const normalizedArgv1 = argv1.replace(/\\/g, "/");
+  const normalizedFilename = import.meta.filename.replace(/\\/g, "/");
 
-  return normalizedArgv1 === normalizedFilename ||
-    normalizedArgv1.endsWith('index.mjs') ||
-    normalizedArgv1.endsWith('angular-i18n-mcp');
+  return (
+    normalizedArgv1 === normalizedFilename ||
+    normalizedArgv1.endsWith("index.mjs") ||
+    normalizedArgv1.endsWith("angular-i18n-mcp")
+  );
 }
 
 if (isMain()) {
