@@ -210,5 +210,16 @@ ${units}    </body>
       const updates = Array.from({ length: 51 }, (_, i) => ({ id: `unit-${i}`, translation: `Trans ${i}` }));
       await expect(bulkUpdateTranslations({ locale: 'en', updates })).rejects.toThrow("Maximum 50 updates allowed per tool call.");
     });
+
+    it('should not escape XML tags in translations (like <ph> or <pc>)', async () => {
+      const id = 'unit-1';
+      const translation = 'Hello <ph id="0"/> world';
+      await updateTranslation({ id, locale: 'en', translation });
+
+      const updatedContent = await fs.readFile(path.join(TEST_LOCALE_DIR, 'messages.en.xlf'), 'utf-8');
+      expect(updatedContent).toContain('<target>Hello <ph id="0"/> world</target>');
+      expect(updatedContent).toContain('<segment state="translated">');
+      expect(updatedContent).not.toContain('&lt;ph');
+    });
   });
 });

@@ -86,7 +86,17 @@ function applyTranslationUpdate(doc, units, id, translation) {
     segment.appendChild(target);
   }
 
-  target.textContent = translation;
+  while (target.firstChild) {
+    target.removeChild(target.firstChild);
+  }
+
+  const fragment = new DOMParser().parseFromString(`<t>${translation}</t>`, "application/xml");
+  const root = fragment.documentElement;
+  while (root.firstChild) {
+    const importedNode = doc.importNode(root.firstChild, true);
+    target.appendChild(importedNode);
+    root.removeChild(root.firstChild);
+  }
   if (segment && segment.tagName === "segment") {
     segment.setAttribute("state", "translated");
   } else {
